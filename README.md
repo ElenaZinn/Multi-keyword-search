@@ -28,6 +28,12 @@
 pip install PyQt6 PyQt6-Qt6 PyQt6-sip
 ```
 
+### macOs15
+
+```bash
+python -m venv venv && source venv/bin/activate && pip install --no-cache-dir --force-reinstall PyQt6 PyQt6-Qt6 PyQt6-sip
+```
+
 ### 运行方式
 
 ```bash
