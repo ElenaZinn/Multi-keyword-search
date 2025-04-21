@@ -45,6 +45,10 @@
         #searchButton:hover {
             background-color: #45a049;
         }
+        #searchButton:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
         #content {
             border: 1px solid #ddd;
             padding: 20px;
@@ -123,6 +127,31 @@
         .unsupported-formats {
             color: #f44336;
         }
+        .progress-container {
+            display: none;
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #f5f5f5;
+            border-radius: 4px;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background-color: #4CAF50;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        .progress-text {
+            text-align: center;
+            margin-top: 5px;
+            color: #666;
+        }
     </style>
 </head>
 <body>
@@ -131,6 +160,12 @@
             <div class="instructions">请输入搜索关键字，多个关键字用逗号分隔（例如：hello,world）</div>
             <input type="text" id="searchInput" placeholder="输入搜索关键字，用逗号分隔...">
             <button id="searchButton">搜索</button>
+            <div class="progress-container" id="progressContainer">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div class="progress-text" id="progressText">正在搜索... 0%</div>
+            </div>
         </div>
 
         <div class="file-upload" id="dropZone">
@@ -174,6 +209,8 @@ The quick brown fox jumps over the lazy dog.</div>
     </div>
 
     <script>
+        let searchWorker = null;
+
         function escapeRegExp(string) {
             return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         }
@@ -190,11 +227,12 @@ The quick brown fox jumps over the lazy dog.</div>
         function highlightText() {
             const searchInput = document.getElementById('searchInput').value;
             const content = document.getElementById('content');
-            let text = content.innerText;
+            const searchButton = document.getElementById('searchButton');
+            const progressContainer = document.getElementById('progressContainer');
+            const progressFill = document.getElementById('progressFill');
+            const progressText = document.getElementById('progressText');
             
-            // 首先移除所有现有的高亮，同时确保HTML代码显示为文本
-            content.textContent = text;
-            text = content.textContent; // 获取纯文本内容
+            let text = content.innerText;
             
             if (!searchInput.trim()) return;
             
@@ -204,18 +242,68 @@ The quick brown fox jumps over the lazy dog.</div>
                 .filter(keyword => keyword.length > 0);
                 
             if (keywords.length === 0) return;
+
+            // 终止之前的搜索（如果有）
+            if (searchWorker) {
+                searchWorker.terminate();
+            }
+
+            // 创建新的 Worker
+            searchWorker = new Worker('search-worker.js');
             
-            // 创建正则表达式模式，包含所有关键字
-            const pattern = keywords
-                .map(keyword => `(${escapeRegExp(keyword)})`)
-                .join('|');
+            // 禁用搜索按钮并显示进度条
+            searchButton.disabled = true;
+            progressContainer.style.display = 'block';
+            progressFill.style.width = '0%';
+            progressText.textContent = '正在搜索... 0%';
             
-            const regex = new RegExp(pattern, 'gi');
+            // 处理 Worker 消息
+            searchWorker.onmessage = function(e) {
+                const { type, progress, matches } = e.data;
+                
+                if (type === 'progress') {
+                    // 更新进度条
+                    progressFill.style.width = `${progress}%`;
+                    progressText.textContent = `正在搜索... ${Math.round(progress)}%`;
+                    
+                    // 应用当前批次的高亮
+                    applyHighlights(text, matches);
+                } else if (type === 'complete') {
+                    // 搜索完成
+                    searchButton.disabled = false;
+                    progressContainer.style.display = 'none';
+                    
+                    // 应用所有高亮
+                    applyHighlights(text, matches);
+                    
+                    // 终止 Worker
+                    searchWorker.terminate();
+                    searchWorker = null;
+                }
+            };
             
-            // 替换文本中的匹配项为带高亮的HTML，同时保持HTML字符转义
+            // 开始搜索
+            searchWorker.postMessage({
+                text: text,
+                keywords: keywords,
+                chunkSize: 1024 * 1024 // 1MB chunks
+            });
+        }
+
+        function applyHighlights(text, matches) {
+            const content = document.getElementById('content');
             let highlightedText = escapeHtml(text);
-            highlightedText = highlightedText.replace(regex, match => 
-                `<span class="highlight">${escapeHtml(match)}</span>`);
+            
+            // 按索引倒序排列，这样不会影响后续插入的位置
+            matches.sort((a, b) => b.index - a.index);
+            
+            // 插入高亮标记
+            for (const match of matches) {
+                const before = highlightedText.slice(0, match.index);
+                const after = highlightedText.slice(match.index + match.length);
+                const highlighted = `<span class="highlight">${escapeHtml(match.text)}</span>`;
+                highlightedText = before + highlighted + after;
+            }
             
             content.innerHTML = highlightedText;
         }
@@ -255,7 +343,6 @@ The quick brown fox jumps over the lazy dog.</div>
             reader.onload = function(e) {
                 try {
                     const text = e.target.result;
-                    // 确保HTML内容显示为源代码
                     content.textContent = text;
                     fileInfo.textContent = `已加载文件: ${file.name}`;
                     errorMessage.style.display = 'none';
