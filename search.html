@@ -134,7 +134,7 @@
         </div>
 
         <div class="file-upload" id="dropZone">
-            <input type="file" id="fileInput" accept=".txt,.py,.js,.html,.css,.xml,.json,.md">
+            <input type="file" id="fileInput" accept=".txt,.py,.js,.html,.css,.xml,.json,.md,.log">
             <label for="fileInput" class="upload-btn">选择文件</label>
             <div class="instructions">或将文件拖放到此处</div>
             <div class="file-info" id="fileInfo"></div>
@@ -149,7 +149,8 @@
                     • CSS 样式表 (.css)<br>
                     • XML 文件 (.xml)<br>
                     • JSON 文件 (.json)<br>
-                    • Markdown 文件 (.md)
+                    • Markdown 文件 (.md)<br>
+                    • Log 文件 (.log)
                 </div>
                 <h4>不支持的文件格式：</h4>
                 <div class="unsupported-formats">
@@ -227,7 +228,7 @@ The quick brown fox jumps over the lazy dog.</div>
             
             // 获取文件扩展名
             const extension = file.name.split('.').pop().toLowerCase();
-            const supportedFormats = ['txt', 'py', 'js', 'html', 'css', 'xml', 'json', 'md'];
+            const supportedFormats = ['txt', 'py', 'js', 'html', 'css', 'xml', 'json', 'md', 'log'];
             
             if (!supportedFormats.includes(extension)) {
                 errorMessage.textContent = '不支持的文件格式';
