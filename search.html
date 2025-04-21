@@ -209,11 +209,49 @@ The quick brown fox jumps over the lazy dog.</div>
     </div>
 
     <script>
-        let searchWorker = null;
+        // 创建内联 Web Worker
+        const workerCode = 
+            'function escapeRegExp(string) {' +
+            '    return string.replace(/[.*+?^${}()|[\]\\\\]/g, "\\\\$&");' +
+            '}' +
+            'self.onmessage = function(e) {' +
+            '    const text = e.data.text;' +
+            '    const keywords = e.data.keywords;' +
+            '    const chunkSize = e.data.chunkSize || 1024 * 1024;' +
+            '    const pattern = keywords.map(keyword => "(" + escapeRegExp(keyword) + ")").join("|");' +
+            '    const regex = new RegExp(pattern, "gi");' +
+            '    const chunks = [];' +
+            '    const totalChunks = Math.ceil(text.length / chunkSize);' +
+            '    let processedChunks = 0;' +
+            '    for (let i = 0; i < text.length; i += chunkSize) {' +
+            '        const chunk = text.slice(i, i + chunkSize);' +
+            '        const matches = [];' +
+            '        let match;' +
+            '        while ((match = regex.exec(chunk)) !== null) {' +
+            '            matches.push({' +
+            '                index: i + match.index,' +
+            '                text: match[0],' +
+            '                length: match[0].length' +
+            '            });' +
+            '        }' +
+            '        processedChunks++;' +
+            '        self.postMessage({' +
+            '            type: "progress",' +
+            '            progress: (processedChunks / totalChunks) * 100,' +
+            '            matches: matches' +
+            '        });' +
+            '        chunks.push(matches);' +
+            '    }' +
+            '    const allMatches = [].concat.apply([], chunks);' +
+            '    self.postMessage({' +
+            '        type: "complete",' +
+            '        matches: allMatches' +
+            '    });' +
+            '};';
 
-        function escapeRegExp(string) {
-            return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        }
+        const workerBlob = new Blob([workerCode], { type: 'application/javascript' });
+        let searchWorker = null;
+        let originalText = ''; // 存储原始文本
 
         function escapeHtml(text) {
             return text
@@ -232,16 +270,25 @@ The quick brown fox jumps over the lazy dog.</div>
             const progressFill = document.getElementById('progressFill');
             const progressText = document.getElementById('progressText');
             
-            let text = content.innerText;
+            // 如果originalText为空，说明是第一次搜索，保存原始文本
+            if (!originalText) {
+                originalText = content.innerText;
+            }
             
-            if (!searchInput.trim()) return;
+            if (!searchInput.trim()) {
+                content.innerHTML = escapeHtml(originalText);
+                return;
+            }
             
             // 分割搜索关键字
             const keywords = searchInput.split(',')
                 .map(keyword => keyword.trim())
                 .filter(keyword => keyword.length > 0);
                 
-            if (keywords.length === 0) return;
+            if (keywords.length === 0) {
+                content.innerHTML = escapeHtml(originalText);
+                return;
+            }
 
             // 终止之前的搜索（如果有）
             if (searchWorker) {
@@ -249,7 +296,9 @@ The quick brown fox jumps over the lazy dog.</div>
             }
 
             // 创建新的 Worker
-            searchWorker = new Worker('search-worker.js');
+            const workerUrl = URL.createObjectURL(workerBlob);
+            searchWorker = new Worker(workerUrl);
+            URL.revokeObjectURL(workerUrl); // 清理 URL
             
             // 禁用搜索按钮并显示进度条
             searchButton.disabled = true;
@@ -267,24 +316,33 @@ The quick brown fox jumps over the lazy dog.</div>
                     progressText.textContent = `正在搜索... ${Math.round(progress)}%`;
                     
                     // 应用当前批次的高亮
-                    applyHighlights(text, matches);
+                    applyHighlights(originalText, matches);
                 } else if (type === 'complete') {
                     // 搜索完成
                     searchButton.disabled = false;
                     progressContainer.style.display = 'none';
                     
                     // 应用所有高亮
-                    applyHighlights(text, matches);
+                    applyHighlights(originalText, matches);
                     
                     // 终止 Worker
                     searchWorker.terminate();
                     searchWorker = null;
                 }
             };
+
+            // 添加错误处理
+            searchWorker.onerror = function(error) {
+                console.error('Worker error:', error);
+                searchButton.disabled = false;
+                progressContainer.style.display = 'none';
+                content.innerHTML = escapeHtml(originalText);
+                alert('搜索过程中发生错误，请重试');
+            };
             
             // 开始搜索
             searchWorker.postMessage({
-                text: text,
+                text: originalText,
                 keywords: keywords,
                 chunkSize: 1024 * 1024 // 1MB chunks
             });
@@ -344,6 +402,7 @@ The quick brown fox jumps over the lazy dog.</div>
                 try {
                     const text = e.target.result;
                     content.textContent = text;
+                    originalText = text; // 保存新的原始文本
                     fileInfo.textContent = `已加载文件: ${file.name}`;
                     errorMessage.style.display = 'none';
                     
