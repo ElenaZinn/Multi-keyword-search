@@ -4,6 +4,8 @@
 
 ## Python GUI 版本
 
+<img width="1194" alt="image" src="https://github.com/user-attachments/assets/47d49cc8-125a-4cab-822e-3a0e7f77bdde" />
+
 ### 功能特点
 
 - 🔍 实时文件内容搜索
@@ -12,6 +14,8 @@
 - 📝 支持大文件搜索
 - 🌈 美观的图形界面
 - 🔤 支持 UTF-8 和 GBK 编码
+
+
 
 ### 系统要求
 
@@ -38,6 +42,8 @@ python search_gui.py
 4. 匹配内容会在右侧文本框中以黄色高亮显示
 
 ## HTML 版本
+
+<img width="1415" alt="image" src="https://github.com/user-attachments/assets/90ad7f41-5ec2-4196-a651-06bff75fdc5e" />
 
 ### 功能特点
 
@@ -74,4 +80,3 @@ python search_gui.py
 
 MIT License
 
-<img width="1415" alt="image" src="https://github.com/user-attachments/assets/90ad7f41-5ec2-4196-a651-06bff75fdc5e" />
